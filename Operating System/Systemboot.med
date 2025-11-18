@@ -1,0 +1,71 @@
+System Boot (Desktop and Mobile)
+Version: 1.0
+Purpose: Concise reference of how operating systems boot on PCs/servers and mobile devices.
+
+PC/Server (Linux) Boot Flow
+- Power On -> Firmware -> Bootloader -> Kernel -> initramfs -> Root FS -> PID 1 -> Services/Targets
+- Firmware
+    - BIOS (legacy, MBR) or UEFI (modern, GPT, NVRAM boot entries, Secure Boot)
+    - POST hardware init, device discovery, boot order, hands off to bootloader
+- Bootloaders
+    - GRUB 2: menu, kernel and initrd loading, supports BIOS/UEFI
+    - systemd-boot: simple UEFI boot manager (reads EFI system partition entries)
+- Kernel and initramfs
+    - Kernel decompresses, sets up drivers, memory, scheduler
+    - initramfs provides early userspace: discovers root device, decrypts LUKS, assembles RAID/LVM
+    - Switches root (pivot_root/switch_root) to real filesystem
+- Userspace
+    - PID 1: systemd (starts units/targets), or alternatives (runit, OpenRC, SysV)
+    - Multi-user/graphical targets reached after services and display manager start
+
+Key Linux Boot Artifacts
+- Firmware: UEFI variables, BootOrder, Boot#### entries
+- Partitions: ESP (EFI System Partition, FAT32), root (/), swap, /boot (optional)
+- Files: /boot/vmlinuz-*, /boot/initrd.img-*, /etc/default/grub, /etc/fstab
+- GRUB config generation: update-grub (grub-mkconfig), grub-install for (U)EFI/MBR
+- Initramfs: update-initramfs (Ubuntu/Debian), dracut (Fedora/RHEL)
+- Secure Boot: signed bootloader, kernel, and modules (shim + MOK on many distros)
+
+Diagnostics (Linux)
+- Firmware/boot: efibootmgr -v, fwupdmgr get-devices
+- Storage: lsblk -f, blkid, cat /etc/fstab
+- Kernel logs: dmesg, journalctl -b, journalctl -b -1 for previous boot
+- Services: systemctl list-units --state=failed, systemd-analyze blame/critical-chain
+- Initramfs content: lsinitramfs /boot/initrd.img-$(uname -r)
+- GRUB: grep -E 'CMDLINE_LINUX|GRUB_' /etc/default/grub
+
+Common Linux Boot Issues and Hints
+- Wrong root= UUID/LABEL -> verify with blkid and /etc/fstab, regenerate grub/initramfs
+- Missing drivers in initramfs (storage, filesystems, crypto) -> add hooks, update-initramfs -u -k all
+- Encrypted/LVM/RAID not assembled -> ensure crypttab/lvm2/mdadm hooks included
+- Secure Boot blocking unsigned modules -> sign modules or disable Secure Boot
+- UEFI entry missing -> efibootmgr --create with correct --disk/--part and loader path (\EFI\...\grubx64.efi)
+
+Android Boot Flow (Mobile)
+- Boot ROM (immutable) -> OEM Bootloader (ABL/LK/U-Boot) -> Verified Boot (AVB) -> Kernel + initramfs -> init -> Zygote -> SystemServer -> Home
+- Partitions (varies by device): boot, vendor_boot, dtbo, vbmeta, recovery, system, vendor, product
+- Verified Boot: dm-verity and vbmeta enforce integrity
+- Modes: normal, recovery, fastboot (flashing), download mode (OEM)
+- Diagnostics: adb logcat, adb shell dmesg, getprop, last_kmsg (if available)
+
+iOS Boot Flow (Mobile)
+- Boot ROM (immutable, hardware root of trust) -> LLB/iBoot -> Secure Boot chain -> kernelcache -> launchd -> SpringBoard
+- Strong code signing and integrity checks through the chain
+- Modes: normal, Recovery, DFU (for restore)
+
+General Concepts
+- Chain of trust: each stage verifies next (UEFI Secure Boot, AVB, iOS secure boot)
+- Device tree/ACPI: hardware description passed to kernel
+- Kernel command line: controls root device, debug, SELinux, etc.
+- Power states: cold boot vs warm boot; hibernate/suspend resume paths are distinct
+
+Safe Recovery Checklist
+1) Firmware: reset to defaults, confirm UEFI/Legacy mode matches install, check boot order
+2) Storage: verify ESP presence and flags, partition UUIDs match fstab
+3) Reinstall bootloader: for UEFI, mount ESP and run grub-install; then update-grub
+4) Regenerate initramfs for current kernel
+5) Review kernel cmdline for root=, resume=, cryptdevice= parameters
+6) Check logs from last successful/failed boot with journalctl -b and -b -1
+
+References to search
+- "UEFI spec", "GRUB manual", "systemd boot process", "Android Verified Boot (AVB)", "iOS Secure Boot chain"
